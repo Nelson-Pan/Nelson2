@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shop Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f5f5f5; }
+    header { background:#111; color:#fff; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+    header h1 { margin:0; font-size:20px; }
+    header a { color:#fff; opacity:.9; text-decoration:none; }
+    header a:hover { text-decoration:underline; }
+    .container { max-width:1100px; margin:auto; padding:20px; }
+    .admin { background:#fff; padding:16px; border-radius:10px; margin-bottom:20px; box-shadow:0 4px 10px rgba(0,0,0,0.08); }
+    .admin input, .admin textarea { width:100%; padding:8px; margin:6px 0; border-radius:8px; border:1px solid #ddd; }
+    .products { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:20px; }
+    .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,0.1); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row > div { flex:1; min-width:220px; }
+    .muted { color:#666; font-size:12px; margin-top:8px; }
+    button { background:#4CAF50; color:#fff; border:none; padding:10px 14px; border-radius:6px; cursor:pointer; }
+    button.secondary { background:#2563eb; }
+    button.danger { background:#dc2626; }
+    img.preview { width:100%; max-height:160px; object-fit:cover; border-radius:8px; margin-bottom:10px; }
+    .status { margin-top:10px; font-size:12px; color:#111; white-space:pre-wrap; }
+    .tiny { font-size:12px; color:#333; }
+    code { background:#f1f5f9; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Admin: Manage Products</h1>
+  <div>
+    <a href="index.html" title="Open the shop">Open Shop</a>
+  </div>
+</header>
+
+<div class="container">
+  <div class="admin">
+    <h2>Add New Product</h2>
+    <input id="name" placeholder="Product Name" />
+    <textarea id="desc" placeholder="Product Description"></textarea>
+    <div class="row">
+      <div><input id="price" placeholder="Price (e.g. 19.99)" /></div>
+      <div><input id="link" placeholder="Buy / Product Link (optional)" /></div>
+    </div>
+    <label class="muted">Attach photo:</label>
+    <input id="imgFile" type="file" accept="image/*" />
+    <div class="row" style="margin-top:10px;">
+      <div><button id="addBtn">Add Product</button></div>
+      <div><button class="secondary" id="downloadBtn">Download products.json</button></div>
+    </div>
+    <div class="status" id="status"></div>
+    <p class="muted">
+      This GitHub method is free and stable: you download <code>products.json</code>, replace it in your repo, and Netlify auto-updates.
+    </p>
+  </div>
+
+  <h2>Current Products (from products.json)</h2>
+  <div class="products" id="productGrid"></div>
+
+  <div class="admin">
+    <h2>How to update so everyone sees it</h2>
+    <ol class="tiny">
+      <li>Click <strong>Download products.json</strong></li>
+      <li>Open your GitHub repo</li>
+      <li>Upload/replace <code>products.json</code> (Commit changes)</li>
+      <li>Netlify will redeploy automatically</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+  let PRODUCTS = [];
+
+  const statusEl = document.getElementById("status");
+  function setStatus(msg){ statusEl.textContent = msg || ""; }
+
+  function uid() {
+    return "p_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+  }
+
+  async function fileToDataUrl(file) {
+    if (!file) return "";
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function money(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+
+  async function loadProducts() {
+    try {
+      setStatus("Loading products.json…");
+      const res = await fetch("./products.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      PRODUCTS = Array.isArray(data) ? data : [];
+      setStatus("Loaded products.json.");
+      renderProductGrid();
+    } catch (e) {
+      console.error(e);
+      setStatus("Could not load products.json (make sure it exists in the repo). Starting with empty list.");
+      PRODUCTS = [];
+      renderProductGrid();
+    }
+  }
+
+  function renderProductGrid() {
+    const grid = document.getElementById("productGrid");
+    grid.innerHTML = "";
+
+    if (!PRODUCTS.length) {
+      grid.innerHTML = "<p class='muted'>No products yet.</p>";
+      return;
+    }
+
+    const list = [...PRODUCTS].sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+
+    list.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const imgHTML = p.imgDataUrl ? `<img class="preview" src="${p.imgDataUrl}" alt="">` : "";
+      const linkHTML = p.link ? `<div class="muted">Link: <a href="${p.link}" target="_blank" rel="noopener">${p.link}</a></div>` : "";
+
+      card.innerHTML = `
+        ${imgHTML}
+        <div><strong>${p.name || "Untitled"}</strong> — $${money(Number(p.price || 0))}</div>
+        <div class="muted" style="margin-top:6px;">${p.desc || ""}</div>
+        ${linkHTML}
+        <div style="margin-top:12px;">
+          <button class="danger">Delete</button>
+        </div>
+      `;
+
+      card.querySelector("button.danger").addEventListener("click", () => {
+        if (!confirm("Delete this product?")) return;
+        PRODUCTS = PRODUCTS.filter(x => x.id !== p.id);
+        renderProductGrid();
+        setStatus("Deleted locally. Download products.json and replace it in GitHub to publish.");
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  async function addProduct() {
+    const name = document.getElementById("name").value.trim();
+    const desc = document.getElementById("desc").value.trim();
+    const priceRaw = document.getElementById("price").value.trim();
+    const link = document.getElementById("link").value.trim();
+    const imgFile = document.getElementById("imgFile").files[0];
+
+    if (!name || !priceRaw) {
+      alert("Product name and price are required.");
+      return;
+    }
+
+    const price = Number(priceRaw);
+    if (Number.isNaN(price) || price < 0) {
+      alert("Please enter a valid price.");
+      return;
+    }
+
+    try {
+      setStatus("Adding product…");
+      const imgDataUrl = await fileToDataUrl(imgFile);
+
+      PRODUCTS.push({
+        id: uid(),
+        name,
+        desc,
+        price,
+        link,
+        imgDataUrl,
+        createdAt: Date.now()
+      });
+
+      document.getElementById("name").value = "";
+      document.getElementById("desc").value = "";
+      document.getElementById("price").value = "";
+      document.getElementById("link").value = "";
+      document.getElementById("imgFile").value = "";
+
+      renderProductGrid();
+      setStatus("✅ Added locally. Now click “Download products.json” and upload it to GitHub to publish.");
+    } catch (e) {
+      console.error(e);
+      setStatus("Could not add product.");
+    }
+  }
+
+  function downloadProductsJson() {
+    const blob = new Blob([JSON.stringify(PRODUCTS, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "products.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("addBtn").addEventListener("click", addProduct);
+  document.getElementById("downloadBtn").addEventListener("click", downloadProductsJson);
+
+  loadProducts();
+</script>
+
+</body>
+</html>

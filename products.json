@@ -1,0 +1,11 @@
+[
+  {
+    "id": "p1",
+    "name": "Sample Product",
+    "desc": "Edit or delete this in the admin page.",
+    "price": 19.99,
+    "link": "https://example.com",
+    "imgDataUrl": "",
+    "createdAt": 1770853054819
+  }
+]

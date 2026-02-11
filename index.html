@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Online Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f5f5f5; }
+    header { background:#111; color:#fff; padding:16px; display:flex; justify-content:space-between; align-items:center; }
+    .header-left h1 { margin:0; font-size:20px; }
+    .searchbar { display:flex; gap:10px; align-items:center; }
+    .searchbar input { padding:8px; border-radius:6px; border:none; width:220px; }
+    .container { max-width:1100px; margin:auto; padding:20px; }
+    .products { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:20px; }
+    .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,0.1); text-align:center; }
+    .card img { width:100%; border-radius:8px; height:160px; object-fit:cover; }
+    .price { font-weight:bold; margin:8px 0; }
+    .actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    button { background:#4CAF50; color:#fff; border:none; padding:10px 14px; border-radius:6px; cursor:pointer; }
+    button.secondary { background:#2563eb; }
+    a { color:#2563eb; text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .cart { margin-top:24px; background:#fff; padding:16px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); }
+    .cart ul { list-style:none; padding:0; margin:0; }
+    .cart li { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #eee; }
+    .cart li:last-child { border-bottom:none; }
+    .muted { color:#666; font-size:12px; margin-top:8px; }
+    .banner { margin:10px 0 0; font-size:12px; opacity:.9; white-space:pre-wrap; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>My Online Shop</h1>
+    <div class="muted">Customers: view + search + cart + buy</div>
+    <div class="banner" id="statusBanner"></div>
+  </div>
+  <div class="searchbar">
+    <input id="search" placeholder="Search products..." oninput="searchProducts()" />
+  </div>
+</header>
+
+<div class="container">
+  <h2>Products</h2>
+  <div class="products" id="products"></div>
+
+  <div class="cart">
+    <h2>Cart</h2>
+    <ul id="cartList"></ul>
+    <p><strong>Total: $<span id="total">0.00</span></strong></p>
+    <button onclick="checkout()">Checkout (Demo)</button>
+    <p class="muted">Tip: “Buy” opens the product link (if the admin set one).</p>
+  </div>
+</div>
+
+<script>
+  const CART_KEY = "myshop_cart_github_v1";
+  let ALL_PRODUCTS = [];
+
+  function money(n) { return (Math.round(n * 100) / 100).toFixed(2); }
+  function setBanner(msg){ document.getElementById("statusBanner").textContent = msg || ""; }
+
+  function loadCart() {
+    try { return JSON.parse(localStorage.getItem(CART_KEY) || "[]"); } catch { return []; }
+  }
+  function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+
+  function renderProducts() {
+    const grid = document.getElementById("products");
+    grid.innerHTML = "";
+
+    if (!ALL_PRODUCTS.length) {
+      grid.innerHTML = "<p class='muted'>No products yet.</p>";
+      return;
+    }
+
+    ALL_PRODUCTS.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.setAttribute("data-name", (p.name || "").toLowerCase());
+
+      const imgHTML = p.imgDataUrl ? `<img src="${p.imgDataUrl}" alt="${p.name || "Product"}" />` : "";
+      const linkHTML = p.link ? `<div style="margin-top:8px;"><a href="${p.link}" target="_blank" rel="noopener">Product Link</a></div>` : "";
+
+      card.innerHTML = `
+        ${imgHTML}
+        <h3>${p.name || "Untitled"}</h3>
+        <p>${p.desc || ""}</p>
+        <p class="price">$${money(Number(p.price || 0))}</p>
+        <div class="actions">
+          <button data-add="${p.id}">Add to Cart</button>
+          <button class="secondary" data-buy="${p.id}">Buy</button>
+        </div>
+        ${linkHTML}
+      `;
+      grid.appendChild(card);
+    });
+
+    grid.querySelectorAll("button[data-add]").forEach(btn => {
+      btn.addEventListener("click", () => addToCart(btn.getAttribute("data-add")));
+    });
+    grid.querySelectorAll("button[data-buy]").forEach(btn => {
+      btn.addEventListener("click", () => buyNow(btn.getAttribute("data-buy")));
+    });
+
+    searchProducts();
+  }
+
+  function addToCart(productId) {
+    const p = ALL_PRODUCTS.find(x => x.id === productId);
+    if (!p) return;
+    const cart = loadCart();
+    cart.push({ id: p.id, name: p.name, price: Number(p.price || 0) });
+    saveCart(cart);
+    renderCart();
+  }
+
+  function removeFromCart(index) {
+    const cart = loadCart();
+    cart.splice(index, 1);
+    saveCart(cart);
+    renderCart();
+  }
+
+  function renderCart() {
+    const cart = loadCart();
+    const ul = document.getElementById("cartList");
+    ul.innerHTML = "";
+    let total = 0;
+
+    cart.forEach((item, idx) => {
+      total += Number(item.price || 0);
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span>${item.name}</span>
+        <span>
+          $${money(Number(item.price || 0))}
+          <button class="secondary" style="padding:6px 8px; margin-left:8px;">Remove</button>
+        </span>
+      `;
+      li.querySelector("button").addEventListener("click", () => removeFromCart(idx));
+      ul.appendChild(li);
+    });
+
+    document.getElementById("total").textContent = money(total);
+  }
+
+  function buyNow(productId) {
+    const p = ALL_PRODUCTS.find(x => x.id === productId);
+    if (!p) return;
+    if (p.link) window.open(p.link, "_blank", "noopener");
+    else alert("No buy link set for this product yet.");
+  }
+
+  window.checkout = function checkout() {
+    alert("Demo checkout. To accept real payments, connect Stripe/PayPal on a hosted site.");
+  };
+
+  window.searchProducts = function searchProducts() {
+    const query = document.getElementById("search").value.toLowerCase().trim();
+    const cards = document.querySelectorAll(".card");
+    cards.forEach(card => {
+      const name = card.getAttribute("data-name") || "";
+      card.style.display = name.includes(query) ? "block" : "none";
+    });
+  };
+
+  async function loadProducts() {
+    try {
+      setBanner("Loading products…");
+      const res = await fetch("./products.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      ALL_PRODUCTS = Array.isArray(data) ? data : [];
+      setBanner("Products loaded.");
+      renderProducts();
+    } catch (e) {
+      console.error(e);
+      setBanner("Could not load products.json (make sure it exists in your GitHub repo).");
+      document.getElementById("products").innerHTML = "<p class='muted'>Could not load products.</p>";
+    }
+  }
+
+  renderCart();
+  loadProducts();
+</script>
+
+</body>
+</html>
